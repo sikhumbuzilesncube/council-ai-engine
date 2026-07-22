@@ -1,12 +1,12 @@
 # app.py
 # Professional Architect Dashboard for Bulawayo City Council
-# With Side Navigation, Council Selection, and Profile Page
 
 import streamlit as st
 import json
 import time
 from datetime import datetime
 import pandas as pd
+import traceback  # <-- NEW: For debugging
 
 # --- Supabase Imports ---
 from supabase import create_client, Client
@@ -21,14 +21,26 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- Supabase Initialization ---
+# --- Supabase Initialization with Debugging ---
 @st.cache_resource
 def init_supabase():
-    url = st.secrets.get("SUPABASE_URL")
-    key = st.secrets.get("SUPABASE_ANON_KEY")
-    if url and key:
-        return create_client(url, key)
-    return None
+    try:
+        url = st.secrets.get("SUPABASE_URL")
+        key = st.secrets.get("SUPABASE_ANON_KEY")
+        
+        # DEBUG: Print to logs so we can see what's happening
+        print(f"SUPABASE_URL found: {url is not None}")
+        print(f"SUPABASE_ANON_KEY found: {key is not None}")
+        
+        if url and key:
+            return create_client(url, key)
+        else:
+            st.error("Secrets are missing! Please add SUPABASE_URL and SUPABASE_ANON_KEY in the Streamlit Secrets.")
+            return None
+    except Exception as e:
+        st.error(f"Failed to connect to Supabase: {str(e)}")
+        st.code(traceback.format_exc())
+        return None
 
 supabase = init_supabase()
 
@@ -42,7 +54,7 @@ def get_current_user():
 def login_user(email, password):
     """Login user with email and password."""
     if not supabase:
-        return None, "Supabase not connected"
+        return None, "Supabase client is not initialized. Check secrets and logs."
     try:
         response = supabase.auth.sign_in_with_password({
             "email": email,
@@ -60,14 +72,14 @@ def login_user(email, password):
                 "role": profile.get("role", "architect")
             }
             return st.session_state.user, None
-        return None, "Login failed"
+        return None, "Login failed - no user returned"
     except Exception as e:
         return None, str(e)
 
 def register_user(email, password, full_name, architect_reg):
     """Register a new user."""
     if not supabase:
-        return None, "Supabase not connected"
+        return None, "Supabase client is not initialized."
     try:
         response = supabase.auth.sign_up({
             "email": email,
@@ -111,7 +123,7 @@ def save_plan_to_db(plan_data, result):
             "user_id": user["id"],
             "architect_name": user.get("full_name", ""),
             "architect_registration": user.get("architect_registration", ""),
-            "council": plan_data.get("council"),  # <-- NEW: Save the selected council
+            "council": plan_data.get("council"),
             "project_name": f"Plan_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             "plot_area": plan_data.get("plot_area"),
             "building_footprint": plan_data.get("building_footprint"),
@@ -162,6 +174,10 @@ def show_login_page():
     st.markdown('<p class="login-title">🏗️ Bulawayo City Council</p>', unsafe_allow_html=True)
     st.markdown('<p class="login-subtitle">Digital Plan Submission Portal</p>', unsafe_allow_html=True)
     
+    # Show Supabase status
+    if not supabase:
+        st.error("⚠️ Supabase is not connected. Please check the Cloud Logs for errors.")
+    
     tab1, tab2 = st.tabs(["🔐 Login", "📝 Register"])
     
     with tab1:
@@ -207,7 +223,7 @@ def show_main_app():
     """Show the main application for logged-in users."""
     user = get_current_user()
     
-    # --- Sidebar Navigation (The missing menu!) ---
+    # --- Sidebar Navigation ---
     with st.sidebar:
         st.markdown("### 🏗️ BCC Portal")
         st.markdown("---")
@@ -219,7 +235,7 @@ def show_main_app():
         
         st.markdown("---")
         
-        # This is the navigation menu you wanted
+        # Navigation Menu
         page = st.radio(
             "Menu",
             ["🏠 Dashboard", "📐 New Submission", "📂 My Submissions", "⚙️ Profile"],
@@ -307,7 +323,7 @@ def display_plan_table(plans):
         data.append({
             "ID": plan.get("id", ""),
             "Date": plan.get("created_at", "")[:10] if plan.get("created_at") else "",
-            "Council": plan.get("council", "N/A"),  # <-- NEW: Show council
+            "Council": plan.get("council", "N/A"),
             "Project": plan.get("project_name", "Untitled")[:30],
             "Status": status_display.get(status, status),
             "Passed": plan.get("ai_result", {}).get("passed_count", 0),
@@ -324,7 +340,7 @@ def show_submission_form():
     st.caption("Fill in the details below to submit your plan for AI review.")
     
     with st.form("submission_form"):
-        # --- COUNCIL SELECTION (NEW) ---
+        # --- COUNCIL SELECTION ---
         col0_1, col0_2 = st.columns([1, 2])
         with col0_1:
             st.markdown("#### 🏛️ Submitting To")
@@ -389,7 +405,7 @@ def show_submission_form():
         
         if submitted:
             plan_data = {
-                "council": council,  # <-- NEW: Include council in the data
+                "council": council,
                 "building_type": "residential",
                 "plot_area": plot_area,
                 "building_footprint": building_footprint,
