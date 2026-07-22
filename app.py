@@ -1,6 +1,6 @@
 # app.py
 # Professional Architect Dashboard for Bulawayo City Council
-# With clean UI, stats, and submission history
+# With Side Navigation, Council Selection, and Profile Page
 
 import streamlit as st
 import json
@@ -111,6 +111,7 @@ def save_plan_to_db(plan_data, result):
             "user_id": user["id"],
             "architect_name": user.get("full_name", ""),
             "architect_registration": user.get("architect_registration", ""),
+            "council": plan_data.get("council"),  # <-- NEW: Save the selected council
             "project_name": f"Plan_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             "plot_area": plan_data.get("plot_area"),
             "building_footprint": plan_data.get("building_footprint"),
@@ -206,7 +207,7 @@ def show_main_app():
     """Show the main application for logged-in users."""
     user = get_current_user()
     
-    # --- Sidebar ---
+    # --- Sidebar Navigation (The missing menu!) ---
     with st.sidebar:
         st.markdown("### 🏗️ BCC Portal")
         st.markdown("---")
@@ -218,10 +219,10 @@ def show_main_app():
         
         st.markdown("---")
         
-        # Navigation
+        # This is the navigation menu you wanted
         page = st.radio(
             "Menu",
-            ["🏠 Dashboard", "📐 New Submission", "📂 My Submissions"],
+            ["🏠 Dashboard", "📐 New Submission", "📂 My Submissions", "⚙️ Profile"],
             index=0
         )
         
@@ -234,8 +235,10 @@ def show_main_app():
         show_dashboard()
     elif page == "📐 New Submission":
         show_submission_form()
-    else:
+    elif page == "📂 My Submissions":
         show_submissions()
+    else:
+        show_profile()
 
 # --- Dashboard Page ---
 def show_dashboard():
@@ -304,6 +307,7 @@ def display_plan_table(plans):
         data.append({
             "ID": plan.get("id", ""),
             "Date": plan.get("created_at", "")[:10] if plan.get("created_at") else "",
+            "Council": plan.get("council", "N/A"),  # <-- NEW: Show council
             "Project": plan.get("project_name", "Untitled")[:30],
             "Status": status_display.get(status, status),
             "Passed": plan.get("ai_result", {}).get("passed_count", 0),
@@ -313,13 +317,34 @@ def display_plan_table(plans):
     df = pd.DataFrame(data)
     st.dataframe(df, use_container_width=True, hide_index=True)
 
-# --- Submission Form (Cleaned Up) ---
+# --- Submission Form (with Council Selection) ---
 def show_submission_form():
     """Display the plan submission form."""
     st.header("📐 Submit New Building Plan")
     st.caption("Fill in the details below to submit your plan for AI review.")
     
     with st.form("submission_form"):
+        # --- COUNCIL SELECTION (NEW) ---
+        col0_1, col0_2 = st.columns([1, 2])
+        with col0_1:
+            st.markdown("#### 🏛️ Submitting To")
+        with col0_2:
+            council = st.selectbox(
+                "Select Local Authority",
+                options=[
+                    "City of Bulawayo",
+                    "City of Harare",
+                    "Gweru",
+                    "Mutare",
+                    "Masvingo",
+                    "Mguza RDC",
+                    "Mzingwane RDC"
+                ],
+                index=0
+            )
+        
+        st.markdown("---")
+        
         col1, col2 = st.columns(2)
         
         with col1:
@@ -364,6 +389,7 @@ def show_submission_form():
         
         if submitted:
             plan_data = {
+                "council": council,  # <-- NEW: Include council in the data
                 "building_type": "residential",
                 "plot_area": plot_area,
                 "building_footprint": building_footprint,
@@ -439,6 +465,24 @@ def show_submissions():
     
     st.markdown("---")
     st.caption("💡 Click on a row above to view full details (coming soon)")
+
+# --- Profile Page ---
+def show_profile():
+    """Display the user's profile information."""
+    user = get_current_user()
+    
+    st.header("⚙️ My Profile")
+    
+    if user:
+        st.markdown(f"""
+        <div style="background: #f8f9fa; padding: 2rem; border-radius: 12px;">
+            <p><strong>👤 Full Name:</strong> {user.get('full_name', 'N/A')}</p>
+            <p><strong>📧 Email:</strong> {user.get('email', 'N/A')}</p>
+            <p><strong>📋 Architect Registration:</strong> {user.get('architect_registration', 'N/A')}</p>
+            <p><strong>🔑 Role:</strong> {user.get('role', 'Architect').capitalize()}</p>
+            <p><strong>🆔 User ID:</strong> {user.get('id', 'N/A')[:8]}...</p>
+        </div>
+        """, unsafe_allow_html=True)
 
 # --- Main App Logic ---
 def main():
