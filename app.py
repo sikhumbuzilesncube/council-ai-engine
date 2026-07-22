@@ -1,11 +1,10 @@
 # app.py
-# Complete Digital Plan Submission Portal for Bulawayo City Council
-# With Supabase Integration, Authentication, and Professional Report
+# Professional Architect Dashboard for Bulawayo City Council
+# With clean UI, stats, and submission history
 
 import streamlit as st
 import json
 import time
-import uuid
 from datetime import datetime
 import pandas as pd
 
@@ -17,7 +16,7 @@ from engine import check_plan
 
 # --- Page Configuration ---
 st.set_page_config(
-    page_title="Bulawayo City Council - Plan Submission",
+    page_title="Bulawayo City Council - Architect Portal",
     page_icon="🏗️",
     layout="wide"
 )
@@ -70,13 +69,11 @@ def register_user(email, password, full_name, architect_reg):
     if not supabase:
         return None, "Supabase not connected"
     try:
-        # Sign up user
         response = supabase.auth.sign_up({
             "email": email,
             "password": password
         })
         if response.user:
-            # Create profile
             profile_data = {
                 "id": response.user.id,
                 "email": email,
@@ -110,7 +107,6 @@ def save_plan_to_db(plan_data, result):
         return None, "Not logged in"
     try:
         user = get_current_user()
-        # Prepare data for insertion
         submission = {
             "user_id": user["id"],
             "architect_name": user.get("full_name", ""),
@@ -154,111 +150,203 @@ def get_user_plans():
 # --- Authentication UI ---
 def show_login_page():
     """Display the login/registration page."""
-    st.title("🏗️ Bulawayo City Council")
-    st.subheader("Digital Plan Submission Portal")
+    st.markdown("""
+        <style>
+            .login-title { text-align: center; font-size: 2.5rem; font-weight: bold; color: #1a3a5c; }
+            .login-subtitle { text-align: center; font-size: 1.1rem; color: #555; margin-bottom: 2rem; }
+            .login-box { max-width: 450px; margin: 0 auto; padding: 2rem; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        </style>
+    """, unsafe_allow_html=True)
     
-    tab1, tab2 = st.tabs(["Login", "Register"])
+    st.markdown('<p class="login-title">🏗️ Bulawayo City Council</p>', unsafe_allow_html=True)
+    st.markdown('<p class="login-subtitle">Digital Plan Submission Portal</p>', unsafe_allow_html=True)
+    
+    tab1, tab2 = st.tabs(["🔐 Login", "📝 Register"])
     
     with tab1:
-        st.markdown("### Login to your account")
-        email = st.text_input("Email", key="login_email")
-        password = st.text_input("Password", type="password", key="login_password")
-        if st.button("Login", type="primary"):
-            if email and password:
-                user, error = login_user(email, password)
-                if user:
-                    st.success("Logged in successfully!")
-                    time.sleep(1)
-                    st.rerun()
+        with st.container():
+            st.markdown('<div class="login-box">', unsafe_allow_html=True)
+            email = st.text_input("Email Address", placeholder="your@email.com", key="login_email")
+            password = st.text_input("Password", type="password", placeholder="Enter your password", key="login_password")
+            if st.button("Login", type="primary", use_container_width=True):
+                if email and password:
+                    user, error = login_user(email, password)
+                    if user:
+                        st.success("✅ Logged in successfully!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Login failed: {error}")
                 else:
-                    st.error(f"Login failed: {error}")
-            else:
-                st.warning("Please enter email and password")
+                    st.warning("Please enter email and password")
+            st.markdown('</div>', unsafe_allow_html=True)
     
     with tab2:
-        st.markdown("### Create an account")
-        reg_email = st.text_input("Email", key="reg_email")
-        reg_password = st.text_input("Password", type="password", key="reg_password")
-        reg_full_name = st.text_input("Full Name", key="reg_name")
-        reg_arch_reg = st.text_input("Architect Registration Number", key="reg_arch")
-        if st.button("Register", type="primary"):
-            if reg_email and reg_password and reg_full_name and reg_arch_reg:
-                user, error = register_user(reg_email, reg_password, reg_full_name, reg_arch_reg)
-                if user:
-                    st.success("Account created successfully!")
-                    time.sleep(1)
-                    st.rerun()
+        with st.container():
+            st.markdown('<div class="login-box">', unsafe_allow_html=True)
+            reg_email = st.text_input("Email Address", placeholder="your@email.com", key="reg_email")
+            reg_password = st.text_input("Password", type="password", placeholder="Choose a strong password", key="reg_password")
+            reg_full_name = st.text_input("Full Name", placeholder="e.g., John Smith", key="reg_name")
+            reg_arch_reg = st.text_input("Architect Registration Number", placeholder="e.g., ARCH-1234", key="reg_arch")
+            if st.button("Create Account", type="primary", use_container_width=True):
+                if reg_email and reg_password and reg_full_name and reg_arch_reg:
+                    user, error = register_user(reg_email, reg_password, reg_full_name, reg_arch_reg)
+                    if user:
+                        st.success("✅ Account created successfully! Please check your email to confirm.")
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Registration failed: {error}")
                 else:
-                    st.error(f"Registration failed: {error}")
-            else:
-                st.warning("Please fill in all fields")
+                    st.warning("Please fill in all fields")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-# --- Main App (Logged In) ---
+# --- Main Dashboard ---
 def show_main_app():
     """Show the main application for logged-in users."""
+    user = get_current_user()
     
-    # Sidebar with user info and navigation
+    # --- Sidebar ---
     with st.sidebar:
-        st.image("https://img.icons8.com/color/96/000000/city-hall.png", width=80)
+        st.markdown("### 🏗️ BCC Portal")
         st.markdown("---")
-        user = get_current_user()
+        
         if user:
-            st.write(f"👤 **{user.get('full_name', user.get('email', 'User'))}**")
-            st.caption(f"Reg: {user.get('architect_registration', 'N/A')}")
+            st.markdown(f"**👤 {user.get('full_name', 'Architect')}**")
+            st.caption(f"📋 {user.get('architect_registration', 'N/A')}")
+            st.caption(f"📧 {user.get('email', '')}")
+        
         st.markdown("---")
         
         # Navigation
         page = st.radio(
-            "Navigate",
-            ["Submit New Plan", "My Submissions", "AI Checker (Beta)"]
+            "Menu",
+            ["🏠 Dashboard", "📐 New Submission", "📂 My Submissions"],
+            index=0
         )
         
         st.markdown("---")
-        if st.button("🚪 Logout", type="secondary"):
+        if st.button("🚪 Logout", use_container_width=True):
             logout_user()
     
-    # Page Content
-    if page == "Submit New Plan":
+    # --- Page Content ---
+    if page == "🏠 Dashboard":
+        show_dashboard()
+    elif page == "📐 New Submission":
         show_submission_form()
-    elif page == "My Submissions":
-        show_submissions()
     else:
-        show_ai_checker()
+        show_submissions()
 
-# --- Submission Form ---
+# --- Dashboard Page ---
+def show_dashboard():
+    """Display the professional dashboard with stats and recent submissions."""
+    user = get_current_user()
+    plans = get_user_plans()
+    
+    # Welcome Banner
+    st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #1a3a5c 0%, #2a5a8c 100%); padding: 2rem; border-radius: 12px; margin-bottom: 2rem; color: white;">
+            <h1 style="margin: 0; font-size: 1.8rem;">👋 Welcome, {user.get('full_name', 'Architect')}!</h1>
+            <p style="margin: 0.5rem 0 0 0; opacity: 0.8;">You are logged into the Bulawayo City Council Digital Plan Submission Portal.</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Quick Stats
+    if plans:
+        total = len(plans)
+        pending = len([p for p in plans if p.get("status") in ["submitted", "under_review"]])
+        approved = len([p for p in plans if p.get("status") == "approved"])
+        rejected = len([p for p in plans if p.get("status") == "rejected"])
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("📊 Total Submissions", total)
+        with col2:
+            st.metric("⏳ Pending", pending)
+        with col3:
+            st.metric("✅ Approved", approved)
+        with col4:
+            st.metric("❌ Rejected", rejected)
+    else:
+        st.info("📭 You have no submissions yet. Click 'New Submission' to get started.")
+    
+    st.markdown("---")
+    
+    # Quick Action Button
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("📐 Submit New Plan", type="primary", use_container_width=True):
+            st.session_state.page = "📐 New Submission"
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # Recent Submissions Table
+    if plans:
+        st.subheader("📋 Recent Submissions")
+        display_plan_table(plans[:10])
+    else:
+        st.info("📭 No submissions yet. Start by submitting your first plan!")
+
+# --- Plan Table Display ---
+def display_plan_table(plans):
+    """Display a clean table of plans."""
+    data = []
+    for plan in plans:
+        status_display = {
+            "submitted": "⏳ Submitted",
+            "under_review": "🔄 Under Review",
+            "approved": "✅ Approved",
+            "rejected": "❌ Rejected",
+            "needs_revision": "🔄 Needs Revision"
+        }
+        status = plan.get("status", "submitted")
+        data.append({
+            "ID": plan.get("id", ""),
+            "Date": plan.get("created_at", "")[:10] if plan.get("created_at") else "",
+            "Project": plan.get("project_name", "Untitled")[:30],
+            "Status": status_display.get(status, status),
+            "Passed": plan.get("ai_result", {}).get("passed_count", 0),
+            "Failed": plan.get("ai_result", {}).get("failed_count", 0)
+        })
+    
+    df = pd.DataFrame(data)
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+# --- Submission Form (Cleaned Up) ---
 def show_submission_form():
     """Display the plan submission form."""
     st.header("📐 Submit New Building Plan")
-    st.caption("Fill in the details below to submit your plan for AI review")
+    st.caption("Fill in the details below to submit your plan for AI review.")
     
     with st.form("submission_form"):
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("Site Details")
+            st.markdown("#### 📍 Site Details")
             plot_area = st.number_input("Plot Area (m²)", min_value=50, max_value=10000, value=500)
             building_footprint = st.number_input("Building Footprint (m²)", min_value=20, max_value=5000, value=250)
             
-            st.subheader("Setbacks")
+            st.markdown("#### 📏 Setbacks")
             front_setback = st.number_input("Front Setback (m)", min_value=0.0, max_value=50.0, value=4.0)
             side_setback = st.number_input("Side Setback (m)", min_value=0.0, max_value=50.0, value=2.0)
             rear_setback = st.number_input("Rear Setback (m)", min_value=0.0, max_value=50.0, value=3.0)
             
-            st.subheader("Foundations")
+            st.markdown("#### 🧱 Foundations")
             foundation_depth = st.number_input("Foundation Depth (mm)", min_value=200, max_value=2000, value=600)
             foundation_width = st.number_input("Foundation Width (mm)", min_value=200, max_value=800, value=350)
         
         with col2:
-            st.subheader("Building Height")
+            st.markdown("#### 📐 Building Height")
             total_height = st.number_input("Total Height (m)", min_value=2.0, max_value=50.0, value=10.5)
             storey_height = st.number_input("Storey Height (m)", min_value=2.0, max_value=5.0, value=2.6)
             num_storeys = st.number_input("Number of Storeys", min_value=1, max_value=10, value=3)
             
-            st.subheader("Walls")
+            st.markdown("#### 🧱 Walls")
             external_wall_thickness = st.number_input("External Wall Thickness (mm)", min_value=100, max_value=400, value=215)
             internal_wall_thickness = st.number_input("Internal Wall Thickness (mm)", min_value=80, max_value=300, value=100)
             
-            st.subheader("Lighting & Ventilation")
+            st.markdown("#### 💡 Lighting & Ventilation")
             has_kitchen = st.checkbox("Plan includes a kitchen", value=True)
             kitchen_window_area = 0.0
             if has_kitchen:
@@ -266,15 +354,15 @@ def show_submission_form():
             other_window_area = st.number_input("Other Rooms Window Area (% of floor area)", min_value=0.0, max_value=30.0, value=11.0)
             ventilation_area = st.number_input("Ventilation Area (% of floor area)", min_value=0.0, max_value=20.0, value=6.0)
         
-        # File Upload
+        st.markdown("---")
+        
         st.subheader("📎 Upload Plan File")
         uploaded_file = st.file_uploader("Upload your plan (PDF, PNG, JPG, or CAD file)", 
                                          type=["pdf", "png", "jpg", "jpeg", "dwg", "dxf"])
         
-        submitted = st.form_submit_button("🚀 Submit Plan for Review", type="primary")
+        submitted = st.form_submit_button("🚀 Submit Plan for Review", type="primary", use_container_width=True)
         
         if submitted:
-            # Build plan data
             plan_data = {
                 "building_type": "residential",
                 "plot_area": plot_area,
@@ -295,11 +383,9 @@ def show_submission_form():
                 "ventilation_area": ventilation_area
             }
             
-            # Run AI check
             with st.spinner("🤖 AI is reviewing your plan..."):
                 result = check_plan(plan_data)
             
-            # Save to database
             if supabase:
                 saved, error = save_plan_to_db(plan_data, result)
                 if saved:
@@ -307,14 +393,13 @@ def show_submission_form():
                 else:
                     st.warning(f"⚠️ Plan checked but could not be saved: {error}")
             
-            # Display results
             st.markdown("---")
             display_ai_results(result)
 
 # --- Display AI Results ---
 def display_ai_results(result):
     """Display the AI inspection report."""
-    st.header("📋 AI Inspection Report")
+    st.subheader("📋 AI Inspection Report")
     
     if result["status"] == "PASSED":
         st.success("✅ **PLAN PASSED!** Your plan complies with all checked by-laws.")
@@ -347,47 +432,16 @@ def show_submissions():
     
     plans = get_user_plans()
     if not plans:
-        st.info("You have no submissions yet. Click 'Submit New Plan' to get started.")
+        st.info("📭 You have no submissions yet. Click 'New Submission' to get started.")
         return
     
-    # Convert to DataFrame for display
-    data = []
-    for plan in plans:
-        status_colors = {
-            "submitted": "🔵",
-            "under_review": "🟡",
-            "approved": "🟢",
-            "rejected": "🔴",
-            "needs_revision": "🟠"
-        }
-        status_emoji = status_colors.get(plan.get("status", "submitted"), "⚪")
-        
-        data.append({
-            "ID": plan.get("id", ""),
-            "Date": plan.get("created_at", "")[:10],
-            "Project": plan.get("project_name", "Untitled"),
-            "Status": f"{status_emoji} {plan.get('status', 'submitted').replace('_', ' ').title()}",
-            "Passed": plan.get("ai_result", {}).get("passed_count", 0),
-            "Failed": plan.get("ai_result", {}).get("failed_count", 0)
-        })
-    
-    df = pd.DataFrame(data)
-    st.dataframe(df, use_container_width=True)
+    display_plan_table(plans)
     
     st.markdown("---")
-    st.caption("Click on a row above to view full details (coming soon)")
-
-# --- AI Checker (Beta) ---
-def show_ai_checker():
-    """Standalone AI checker for testing."""
-    st.header("🔬 AI Plan Checker (Beta)")
-    st.caption("Test your plan against the by-laws without submitting")
-    show_submission_form()
+    st.caption("💡 Click on a row above to view full details (coming soon)")
 
 # --- Main App Logic ---
 def main():
-    """Main application entry point."""
-    # Check if user is logged in
     user = get_current_user()
     
     if user:
